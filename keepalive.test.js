@@ -216,6 +216,97 @@ test('recoverNow reopens discovery and verifies it within the recovery budget', 
   ]);
 });
 
+test('recoverNow verifies the switch before reopening after a close notification', async () => {
+  const { sdk, calls } = createSdk([1]);
+  const controller = createController({
+    sdk,
+    logger: noopLogger,
+    delay: async () => {},
+    schedule: () => {},
+  });
+
+  await controller.initialize();
+  calls.length = 0;
+
+  const recovery = await controller.recoverNow('close-event', {
+    verifyFirst: true,
+  });
+
+  assert.equal(recovery.status, 1);
+  assert.deepEqual(calls, [
+    [
+      'ipc',
+      PROTOCOL.SERVICE_MODULE_ID,
+      PROTOCOL.GET_ALLOW_DISCOVER,
+      PROTOCOL.OFFICE_MODULE_ID,
+      '',
+    ],
+    [
+      'ipc',
+      PROTOCOL.SERVICE_MODULE_ID,
+      PROTOCOL.RESTART_STOP_PUBLISH_TIMER,
+      PROTOCOL.OFFICE_MODULE_ID,
+      '',
+    ],
+  ]);
+});
+
+test('recoverNow still reopens when verification confirms the switch is off', async () => {
+  const { sdk, calls } = createSdk([0, 1]);
+  const controller = createController({
+    sdk,
+    logger: noopLogger,
+    delay: async () => {},
+    schedule: () => {},
+  });
+
+  await controller.initialize();
+  calls.length = 0;
+
+  const recovery = await controller.recoverNow('confirmed-off', {
+    verifyFirst: true,
+  });
+
+  assert.equal(recovery.status, 1);
+  assert.deepEqual(calls, [
+    [
+      'ipc',
+      PROTOCOL.SERVICE_MODULE_ID,
+      PROTOCOL.GET_ALLOW_DISCOVER,
+      PROTOCOL.OFFICE_MODULE_ID,
+      '',
+    ],
+    [
+      'start',
+      PROTOCOL.SERVICE_MODULE_ID,
+      PROTOCOL.START_PUBLISH,
+      PROTOCOL.START_PUBLISH_SUCCESS,
+      '',
+    ],
+    [
+      'ipc',
+      PROTOCOL.SERVICE_MODULE_ID,
+      PROTOCOL.ALLOW_DISCOVER,
+      PROTOCOL.OFFICE_MODULE_ID,
+      '1',
+    ],
+    [
+      'ipc',
+      PROTOCOL.SERVICE_MODULE_ID,
+      PROTOCOL.RESTART_STOP_PUBLISH_TIMER,
+      PROTOCOL.OFFICE_MODULE_ID,
+      '',
+    ],
+    [
+      'ipc',
+      PROTOCOL.SERVICE_MODULE_ID,
+      PROTOCOL.GET_ALLOW_DISCOVER,
+      PROTOCOL.OFFICE_MODULE_ID,
+      '',
+    ],
+  ]);
+});
+
 test('writeHealthFile records a machine-readable self-check snapshot', (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'honor-share-health-'));
   const healthPath = path.join(directory, 'health.json');

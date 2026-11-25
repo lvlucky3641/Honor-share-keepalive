@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.6 - 2026-11-26
+
+- Reduced recurring HONOR close-popup notifications triggered by the ten-minute discovery event.
+- Close notifications now query the real switch state before reopening it.
+- When the switch is still ON, only the timer is refreshed and the HONOR share UI is not relaunched.
+- Added tests for both spurious and confirmed-off close notifications.
+
 ## 1.3.5 - 2026-11-25
 
 - Fixed repeated PowerShell terminal windows caused by the Windows 11 default terminal host.

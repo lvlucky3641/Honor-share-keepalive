@@ -147,19 +147,33 @@ function createController({
 
     logger.warn(`${reason}，立即执行无窗口恢复: ${String(payload)}`);
     schedule(() => {
-      recoverNow(reason).catch((error) => {
+      recoverNow(reason, { verifyFirst: true }).catch((error) => {
         logger.error(`即时恢复失败: ${error.stack || error.message}`);
       });
     }, 0);
   }
 
-  function recoverNow(reason) {
+  function recoverNow(reason, { verifyFirst = false } = {}) {
     if (recoveryInFlight) {
       return recoveryInFlight;
     }
 
     const startedAt = Date.now();
     const operation = (async () => {
+      if (verifyFirst) {
+        const observedStatus = await queryStatus(1_000);
+        if (observedStatus === 1) {
+          await restartDiscoveryTimer();
+          const latencyMs = Date.now() - startedAt;
+          logger.info(`关闭通知后确认分享仍开启，仅刷新计时器: ${reason}，耗时 ${latencyMs}ms。`);
+          return {
+            status: 1,
+            latencyMs,
+            reopened: false,
+          };
+        }
+      }
+
       startPublishing();
       setDiscoveryEnabled(true);
       await restartDiscoveryTimer();
@@ -175,6 +189,7 @@ function createController({
       return {
         status,
         latencyMs,
+        reopened: true,
       };
     })();
 
