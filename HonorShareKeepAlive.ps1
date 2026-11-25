@@ -39,6 +39,20 @@ function Get-KeepAliveTask {
     Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
 }
 
+function Get-CurrentKeepAliveTask {
+    $task = Get-KeepAliveTask
+    if (
+        Test-KeepAliveTaskCommand `
+            -Task $task `
+            -ExpectedExecutable $WScript `
+            -ExpectedLauncher $Launcher
+    ) {
+        return $task
+    }
+
+    return $null
+}
+
 function Get-KeepAliveWatchdogTask {
     Get-ScheduledTask -TaskName $WatchdogTaskName -ErrorAction SilentlyContinue
 }
@@ -194,11 +208,13 @@ function Register-KeepAliveWatchdogTask {
 
 function Invoke-KeepAliveWatchdogNow {
     return Invoke-KeepAliveWatchdog `
-        -GetTask { Get-KeepAliveTask } `
-        -GetWorkers { Get-WorkerProcesses } `
+        -GetTask { Get-CurrentKeepAliveTask } `
+        -GetWorkers { Get-WorkerProcesses -AllCopies } `
+        -ExpectedWorkerScript (Join-Path $RootDir 'keepalive.js') `
         -RegisterTask { Register-KeepAliveTask } `
         -StartTask { Start-ScheduledTask -TaskName $TaskName } `
         -StopTask { Stop-ScheduledTask -TaskName $TaskName } `
+        -StopAllWorkers { Stop-Worker } `
         -Log { param($message) Write-WatchdogLog $message }
 }
 
@@ -211,6 +227,9 @@ function Get-SelfCheckResult {
 
     if (-not $task) {
         $issues.Add('Scheduled task is not installed.')
+    }
+    elseif (-not (Test-KeepAliveTaskCommand -Task $task -ExpectedExecutable $WScript -ExpectedLauncher $Launcher)) {
+        $issues.Add('Scheduled task points to a different keepalive installation.')
     }
     elseif ($task.State -ne 'Running') {
         $issues.Add("Scheduled task state is $($task.State), not Running.")

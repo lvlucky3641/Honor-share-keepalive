@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.4 - 2026-11-25
+
+- Fixed a watchdog restart loop when an older installation reclaimed the shared scheduled task.
+- Detects keepalive workers and task actions from other installation paths and migrates them once to the current version.
+- Self-check now reports when the scheduled task points to a different installation.
+- Added regression coverage for cross-version task actions and worker migration.
+
 ## 1.3.3 - 2026-11-25
 
 - Added an independent watchdog scheduled task that checks the main task and worker every minute.

@@ -25,14 +25,37 @@ function Assert-Sequence {
     Assert-Equal $actual $expectedText 'Unexpected watchdog calls'
 }
 
+$currentWorkerScript = 'C:\apps\keepalive-v1.3.3\keepalive.js'
+$expectedWScript = 'C:\Windows\System32\wscript.exe'
+$currentLauncher = 'C:\apps\keepalive-v1.3.3\launch-hidden.vbs'
+$oldLauncher = 'C:\apps\keepalive-v1.3.1\launch-hidden.vbs'
+
+'task action validation accepts the current installation and rejects an older one'
+$currentTask = [pscustomobject]@{
+    Actions = @([pscustomobject]@{
+        Execute = $expectedWScript
+        Arguments = "//B //NoLogo `"$currentLauncher`""
+    })
+}
+$oldTask = [pscustomobject]@{
+    Actions = @([pscustomobject]@{
+        Execute = $expectedWScript
+        Arguments = "//B //NoLogo `"$oldLauncher`""
+    })
+}
+Assert-Equal (Test-KeepAliveTaskCommand -Task $currentTask -ExpectedExecutable $expectedWScript -ExpectedLauncher $currentLauncher) $true 'Current task action should match'
+Assert-Equal (Test-KeepAliveTaskCommand -Task $oldTask -ExpectedExecutable $expectedWScript -ExpectedLauncher $currentLauncher) $false 'Old task action should not match'
+
 'ready task with no worker starts the main task'
 $calls = [System.Collections.Generic.List[string]]::new()
 $result = Invoke-KeepAliveWatchdog `
     -GetTask { [pscustomobject]@{ State = 'Ready' } } `
     -GetWorkers { @() } `
+    -ExpectedWorkerScript $currentWorkerScript `
     -RegisterTask { $calls.Add('register') } `
     -StartTask { $calls.Add('start') } `
     -StopTask { $calls.Add('stop') } `
+    -StopAllWorkers { $calls.Add('stop-all') } `
     -Wait { param($milliseconds) } `
     -Log { param($message) }
 Assert-Equal $result.Action 'Started' 'Ready task should be started'
@@ -43,9 +66,11 @@ $calls = [System.Collections.Generic.List[string]]::new()
 $result = Invoke-KeepAliveWatchdog `
     -GetTask { [pscustomobject]@{ State = 'Running' } } `
     -GetWorkers { @() } `
+    -ExpectedWorkerScript $currentWorkerScript `
     -RegisterTask { $calls.Add('register') } `
     -StartTask { $calls.Add('start') } `
     -StopTask { $calls.Add('stop') } `
+    -StopAllWorkers { $calls.Add('stop-all') } `
     -Wait { param($milliseconds) } `
     -Log { param($message) }
 Assert-Equal $result.Action 'Restarted' 'Stale running task should be restarted'
@@ -55,10 +80,12 @@ Assert-Sequence $calls @('stop', 'start')
 $calls = [System.Collections.Generic.List[string]]::new()
 $result = Invoke-KeepAliveWatchdog `
     -GetTask { [pscustomobject]@{ State = 'Running' } } `
-    -GetWorkers { @([pscustomobject]@{ ProcessId = 11 }) } `
+    -GetWorkers { @([pscustomobject]@{ ProcessId = 11; CommandLine = "`"Hihonornote.exe`" `"$currentWorkerScript`"" }) } `
+    -ExpectedWorkerScript $currentWorkerScript `
     -RegisterTask { $calls.Add('register') } `
     -StartTask { $calls.Add('start') } `
     -StopTask { $calls.Add('stop') } `
+    -StopAllWorkers { $calls.Add('stop-all') } `
     -Wait { param($milliseconds) } `
     -Log { param($message) }
 Assert-Equal $result.Action 'Healthy' 'Single worker should be healthy'
@@ -68,10 +95,12 @@ Assert-Sequence $calls @()
 $calls = [System.Collections.Generic.List[string]]::new()
 $result = Invoke-KeepAliveWatchdog `
     -GetTask { [pscustomobject]@{ State = 'Running' } } `
-    -GetWorkers { @([pscustomobject]@{ ProcessId = 11 }, [pscustomobject]@{ ProcessId = 12 }) } `
+    -GetWorkers { @([pscustomobject]@{ ProcessId = 11; CommandLine = "`"Hihonornote.exe`" `"$currentWorkerScript`"" }, [pscustomobject]@{ ProcessId = 12; CommandLine = "`"Hihonornote.exe`" `"$currentWorkerScript`"" }) } `
+    -ExpectedWorkerScript $currentWorkerScript `
     -RegisterTask { $calls.Add('register') } `
     -StartTask { $calls.Add('start') } `
     -StopTask { $calls.Add('stop') } `
+    -StopAllWorkers { $calls.Add('stop-all') } `
     -Wait { param($milliseconds) } `
     -Log { param($message) }
 Assert-Equal $result.Action 'DuplicateWorkers' 'Duplicate workers should be reported'
@@ -82,9 +111,11 @@ $calls = [System.Collections.Generic.List[string]]::new()
 $result = Invoke-KeepAliveWatchdog `
     -GetTask { $null } `
     -GetWorkers { @() } `
+    -ExpectedWorkerScript $currentWorkerScript `
     -RegisterTask { $calls.Add('register') } `
     -StartTask { $calls.Add('start') } `
     -StopTask { $calls.Add('stop') } `
+    -StopAllWorkers { $calls.Add('stop-all') } `
     -Wait { param($milliseconds) } `
     -Log { param($message) }
 Assert-Equal $result.Action 'Recreated' 'Missing main task should be recreated'
@@ -94,13 +125,31 @@ Assert-Sequence $calls @('register', 'start')
 $calls = [System.Collections.Generic.List[string]]::new()
 $result = Invoke-KeepAliveWatchdog `
     -GetTask { $null } `
-    -GetWorkers { @([pscustomobject]@{ ProcessId = 11 }) } `
+    -GetWorkers { @([pscustomobject]@{ ProcessId = 11; CommandLine = "`"Hihonornote.exe`" `"$currentWorkerScript`"" }) } `
+    -ExpectedWorkerScript $currentWorkerScript `
     -RegisterTask { $calls.Add('register') } `
     -StartTask { $calls.Add('start') } `
     -StopTask { $calls.Add('stop') } `
+    -StopAllWorkers { $calls.Add('stop-all') } `
     -Wait { param($milliseconds) } `
     -Log { param($message) }
 Assert-Equal $result.Action 'TaskRecreated' 'Live worker should keep the task registration without another start'
 Assert-Sequence $calls @('register')
+
+'a worker from an older installation is migrated once instead of being restarted every minute'
+$calls = [System.Collections.Generic.List[string]]::new()
+$result = Invoke-KeepAliveWatchdog `
+    -GetTask { $null } `
+    -GetWorkers { @([pscustomobject]@{ ProcessId = 11; CommandLine = '"Hihonornote.exe" "C:\apps\keepalive-v1.3.1\keepalive.js"' }) } `
+    -ExpectedWorkerScript $currentWorkerScript `
+    -RegisterTask { $calls.Add('register') } `
+    -StartTask { $calls.Add('start') } `
+    -StopTask { $calls.Add('stop') } `
+    -StopAllWorkers { $calls.Add('stop-all') } `
+    -Wait { param($milliseconds) } `
+    -Log { param($message) }
+Assert-Equal $result.Action 'Migrated' 'Old worker should be migrated to the current installation'
+Assert-Equal $result.ForeignWorkerCount 1 'Migration should report the foreign worker'
+Assert-Sequence $calls @('stop-all', 'register', 'start')
 
 Write-Host 'WATCHDOG TESTS: PASS'

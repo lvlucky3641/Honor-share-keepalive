@@ -1,3 +1,32 @@
+function Test-KeepAliveTaskCommand {
+    param(
+        $Task,
+        [string]$ExpectedExecutable,
+        [string]$ExpectedLauncher
+    )
+
+    if (-not $Task) {
+        return $false
+    }
+
+    $actions = @($Task.Actions)
+    if ($actions.Count -ne 1 -or -not $actions[0].Execute -or -not $actions[0].Arguments) {
+        return $false
+    }
+
+    return (
+        [string]::Equals(
+            $actions[0].Execute,
+            $ExpectedExecutable,
+            [System.StringComparison]::OrdinalIgnoreCase
+        ) -and
+        $actions[0].Arguments.IndexOf(
+            $ExpectedLauncher,
+            [System.StringComparison]::OrdinalIgnoreCase
+        ) -ge 0
+    )
+}
+
 function Invoke-KeepAliveWatchdog {
     [CmdletBinding()]
     param(
@@ -16,6 +45,12 @@ function Invoke-KeepAliveWatchdog {
         [Parameter(Mandatory)]
         [scriptblock]$StopTask,
 
+        [Parameter(Mandatory)]
+        [string]$ExpectedWorkerScript,
+
+        [Parameter(Mandatory)]
+        [scriptblock]$StopAllWorkers,
+
         [scriptblock]$Wait = {
             param($milliseconds)
             Start-Sleep -Milliseconds $milliseconds
@@ -28,10 +63,41 @@ function Invoke-KeepAliveWatchdog {
         [int]$StopWaitMilliseconds = 750
     )
 
-    $workers = @(& $GetWorkers)
+    $allWorkers = @(& $GetWorkers)
+    $workers = @(
+        $allWorkers | Where-Object {
+            $_.CommandLine -and
+            $_.CommandLine.IndexOf(
+                $ExpectedWorkerScript,
+                [System.StringComparison]::OrdinalIgnoreCase
+            ) -ge 0
+        }
+    )
+    $foreignWorkers = @(
+        $allWorkers | Where-Object {
+            -not $_.CommandLine -or
+            $_.CommandLine.IndexOf(
+                $ExpectedWorkerScript,
+                [System.StringComparison]::OrdinalIgnoreCase
+            ) -lt 0
+        }
+    )
     $task = & $GetTask | Select-Object -First 1
     $workerCount = $workers.Count
     $taskState = if ($task) { [string]$task.State } else { 'Missing' }
+
+    if ($foreignWorkers.Count -gt 0) {
+        & $Log "Detected $($foreignWorkers.Count) worker(s) from another installation; migrating to $ExpectedWorkerScript."
+        & $StopAllWorkers
+        & $RegisterTask
+        & $StartTask
+        return [pscustomobject]@{
+            Action = 'Migrated'
+            WorkerCount = $workerCount
+            ForeignWorkerCount = $foreignWorkers.Count
+            TaskState = $taskState
+        }
+    }
 
     if ($workerCount -gt 1) {
         & $Log "Detected $workerCount keepalive workers; skipping automatic recovery."
