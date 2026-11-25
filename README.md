@@ -21,11 +21,14 @@
 
 如果荣耀分享仍因其他事件关闭，后台客户端会监听关闭通知并立即执行一次开启和状态确认。正常理想路径不需要先关闭再开启，因此不会制造断连；异常路径采用事件驱动恢复，不进行每秒轮询。
 
+另外还有一个独立的后台恢复任务每分钟检查一次主任务和保活进程。荣耀工作台更新、崩溃或重启导致保活实例消失时，会在下一分钟内自动重新启动；如果主任务本身缺失，也会自动重建。
+
 ### 自检内容
 
 `Check.cmd` 会同时验证：
 
 - Windows 计划任务存在且处于 `Running`。
+- 自动恢复计划任务已安装且未禁用。
 - 只有 1 个对应后台实例，避免重复启动。
 - 后台进程最近 90 秒内写过健康心跳。
 - 最近一次原生状态查询确认“允许被其他设备发现”为 `ON`。
@@ -72,7 +75,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\HonorShareKeepAlive.ps1 Un
 - `keepalive.js`：原生 IPC 保活逻辑。
 - `launch-hidden.vbs`：以隐藏方式启动 Node 模式。
 - `HonorShareKeepAlive.ps1`：安装、运行控制和自检。
+- `scripts\watchdog.ps1`：定期检查缺失任务或后台实例并执行恢复。
 - `logs/keepalive.log`：运行日志。
+- `logs/watchdog.log`：自动恢复操作日志。
 - `.runtime/health.json`：自检心跳及最近状态。
 
 运行产生的 `logs/` 和 `.runtime/` 已加入 `.gitignore`，不会被提交。
@@ -81,7 +86,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\HonorShareKeepAlive.ps1 Un
 
 - Windows 10 或 Windows 11。
 - 已安装荣耀电脑管家及荣耀超级工作台。
-- 当前测试版本：荣耀电脑管家 `20.0.0.60`，荣耀超级工作台 `5.5.1.86`。
+- 当前测试版本：荣耀电脑管家 `20.0.0.60`，荣耀超级工作台 `5.5.1.104(C233)`。
 
 本项目不访问网络，不上传文件，也不包含荣耀的专有二进制文件。
 
@@ -113,7 +118,7 @@ GitHub Actions 会在 Windows 上运行同一组测试、语法检查和发行�
 
 ## English summary
 
-HONOR Share Keep Alive is a Windows utility that keeps the temporary "discoverable" switch enabled. It checks once per minute over Honor WorkStation's native IPC without opening a window. Double-click `Start.cmd` to install, start, and self-check. The project is not affiliated with HONOR and uses undocumented local IPC that may change between vendor releases.
+HONOR Share Keep Alive is a Windows utility that keeps the temporary "discoverable" switch enabled. It checks once per minute over Honor WorkStation's native IPC without opening a window. An independent watchdog restarts the worker after application updates or unexpected termination. The project is not affiliated with HONOR and uses undocumented local IPC that may change between vendor releases.
 
 ## GitHub
 

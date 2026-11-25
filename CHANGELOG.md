@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.3 - 2026-11-25
+
+- Added an independent watchdog scheduled task that checks the main task and worker every minute.
+- Automatically restarts the worker after HONOR WorkStation updates or unexpected process termination.
+- Recreates a missing main task and repairs a stale `Running` task with no live worker.
+- Added PowerShell tests for stopped, stale-running, healthy, duplicate, and missing-task states.
+- Validated the existing IPC protocol against HONOR WorkStation `5.5.1.104(C233)`.
+
 ## 1.3.2 - 2026-11-25
 
 - Added a reproducible Windows release-package build with an explicit file manifest and SHA-256 checksum.

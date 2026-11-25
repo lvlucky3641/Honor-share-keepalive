@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -279,4 +280,34 @@ test('release packaging is configured with a safe, complete manifest', () => {
       `release file is missing: ${relativePath}`,
     );
   }
+});
+
+test('watchdog repairs a stopped keepalive task without duplicating a healthy worker', {
+  skip: process.platform !== 'win32',
+}, () => {
+  const testScript = path.join(__dirname, 'scripts', 'watchdog.test.ps1');
+
+  assert.ok(fs.existsSync(testScript), 'watchdog PowerShell tests are missing');
+
+  const result = spawnSync(
+    'powershell.exe',
+    [
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      testScript,
+    ],
+    {
+      cwd: __dirname,
+      encoding: 'utf8',
+      timeout: 15_000,
+    },
+  );
+
+  assert.equal(
+    result.status,
+    0,
+    `watchdog tests failed\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
+  );
 });

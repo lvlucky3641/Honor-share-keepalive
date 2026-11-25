@@ -19,6 +19,8 @@
     "launch-hidden.vbs",
     "package.json",
     "release-manifest.json",
-    "scripts/build-release.ps1"
+    "scripts/build-release.ps1",
+    "scripts/watchdog.ps1",
+    "scripts/watchdog.test.ps1"
   ]
 }

@@ -1,6 +1,6 @@
 ﻿param(
     [Parameter(Position = 0)]
-    [ValidateSet('Menu', 'Install', 'Start', 'Stop', 'Check', 'Status', 'Uninstall')]
+    [ValidateSet('Menu', 'Install', 'Start', 'Stop', 'Check', 'Status', 'Uninstall', 'Watchdog')]
     [string]$Command = 'Menu'
 )
 
@@ -16,6 +16,7 @@ catch {
 }
 
 $TaskName = 'HONOR Share Keep Alive'
+$WatchdogTaskName = 'HONOR Share Keep Alive Watchdog'
 $RootDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Launcher = Join-Path $RootDir 'launch-hidden.vbs'
 $RuntimeDir = Join-Path $RootDir '.runtime'
@@ -23,10 +24,23 @@ $StopFlag = Join-Path $RuntimeDir 'stop.request'
 $PidFile = Join-Path $RuntimeDir 'keepalive.pid'
 $HealthFile = Join-Path $RuntimeDir 'health.json'
 $LogFile = Join-Path $RootDir 'logs\keepalive.log'
+$WatchdogLogFile = Join-Path $RootDir 'logs\watchdog.log'
 $WScript = Join-Path $env:SystemRoot 'System32\wscript.exe'
+$PowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+$WatchdogModule = Join-Path $RootDir 'scripts\watchdog.ps1'
+
+if (-not (Test-Path -LiteralPath $WatchdogModule -PathType Leaf)) {
+    throw "Watchdog module not found: $WatchdogModule"
+}
+
+. $WatchdogModule
 
 function Get-KeepAliveTask {
     Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+}
+
+function Get-KeepAliveWatchdogTask {
+    Get-ScheduledTask -TaskName $WatchdogTaskName -ErrorAction SilentlyContinue
 }
 
 function Get-WorkerProcesses {
@@ -112,8 +126,85 @@ function Register-KeepAliveTask {
         -Description 'Keeps HONOR Share discoverable without showing a desktop window.' | Out-Null
 }
 
+function Write-WatchdogLog {
+    param(
+        [string]$Message
+    )
+
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $WatchdogLogFile) |
+        Out-Null
+    $line = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') [WATCHDOG] $Message`r`n"
+    [System.IO.File]::AppendAllText(
+        $WatchdogLogFile,
+        $line,
+        [System.Text.UTF8Encoding]::new($false)
+    )
+}
+
+function Stop-KeepAliveWatchdogTask {
+    $task = Get-KeepAliveWatchdogTask
+    if ($task) {
+        if ($task.State -eq 'Running') {
+            Stop-ScheduledTask -TaskName $WatchdogTaskName
+        }
+        if ($task.State -ne 'Disabled') {
+            Disable-ScheduledTask -TaskName $WatchdogTaskName | Out-Null
+        }
+    }
+}
+
+function Register-KeepAliveWatchdogTask {
+    $existingTask = Get-KeepAliveWatchdogTask
+    if ($existingTask) {
+        if ($existingTask.State -eq 'Running') {
+            Stop-ScheduledTask -TaskName $WatchdogTaskName
+        }
+        Unregister-ScheduledTask -TaskName $WatchdogTaskName -Confirm:$false
+    }
+
+    $userId = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+    $taskAction = New-ScheduledTaskAction `
+        -Execute $PowerShell `
+        -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$RootDir\HonorShareKeepAlive.ps1`" Watchdog"
+    $repeatTrigger = New-ScheduledTaskTrigger `
+        -Once `
+        -At ((Get-Date).AddMinutes(1)) `
+        -RepetitionInterval ([TimeSpan]::FromMinutes(1)) `
+        -RepetitionDuration ([TimeSpan]::FromDays(3650))
+    $principal = New-ScheduledTaskPrincipal `
+        -UserId $userId `
+        -LogonType Interactive `
+        -RunLevel Limited
+    $settings = New-ScheduledTaskSettingsSet `
+        -AllowStartIfOnBatteries `
+        -DontStopIfGoingOnBatteries `
+        -StartWhenAvailable `
+        -ExecutionTimeLimit ([TimeSpan]::FromMinutes(5)) `
+        -MultipleInstances IgnoreNew
+
+    Register-ScheduledTask `
+        -TaskName $WatchdogTaskName `
+        -Action $taskAction `
+        -Trigger $repeatTrigger `
+        -Principal $principal `
+        -Settings $settings `
+        -Description 'Restarts the HONOR Share keepalive worker after updates or unexpected exits.' |
+        Out-Null
+}
+
+function Invoke-KeepAliveWatchdogNow {
+    return Invoke-KeepAliveWatchdog `
+        -GetTask { Get-KeepAliveTask } `
+        -GetWorkers { Get-WorkerProcesses } `
+        -RegisterTask { Register-KeepAliveTask } `
+        -StartTask { Start-ScheduledTask -TaskName $TaskName } `
+        -StopTask { Stop-ScheduledTask -TaskName $TaskName } `
+        -Log { param($message) Write-WatchdogLog $message }
+}
+
 function Get-SelfCheckResult {
     $task = Get-KeepAliveTask
+    $watchdogTask = Get-KeepAliveWatchdogTask
     $workers = @(Get-WorkerProcesses)
     $health = Get-HealthSnapshot
     $issues = [System.Collections.Generic.List[string]]::new()
@@ -123,6 +214,13 @@ function Get-SelfCheckResult {
     }
     elseif ($task.State -ne 'Running') {
         $issues.Add("Scheduled task state is $($task.State), not Running.")
+    }
+
+    if (-not $watchdogTask) {
+        $issues.Add('Watchdog scheduled task is not installed.')
+    }
+    elseif ($watchdogTask.State -eq 'Disabled') {
+        $issues.Add('Watchdog scheduled task is disabled.')
     }
 
     if ($workers.Count -ne 1) {
@@ -156,6 +254,7 @@ function Get-SelfCheckResult {
         Ok = $issues.Count -eq 0
         Issues = $issues
         Task = $task
+        WatchdogTask = $watchdogTask
         Workers = $workers
         Health = $health
     }
@@ -168,6 +267,7 @@ function Write-SelfCheck {
     Write-Host ''
     Write-Host '=== Honor Share Keep Alive Self Check ==='
     Write-Host "Scheduled task : $(if ($result.Task) { $result.Task.State } else { 'Not installed' })"
+    Write-Host "Watchdog task  : $(if ($result.WatchdogTask) { $result.WatchdogTask.State } else { 'Not installed' })"
     Write-Host "Worker count   : $($result.Workers.Count)"
     if ($result.Health) {
         Write-Host "Discoverable   : $(if ($result.Health.listenerStatus -eq 1) { 'ON' } else { 'NOT CONFIRMED' })"
@@ -217,10 +317,12 @@ function Wait-ForHealthyWorker {
 
 function Write-Status {
     $task = Get-KeepAliveTask
+    $watchdogTask = Get-KeepAliveWatchdogTask
     $workers = @(Get-WorkerProcesses)
     $health = Get-HealthSnapshot
 
     Write-Host "计划任务    : $(if ($task) { "$($task.TaskName) [$($task.State)]" } else { '未安装' })"
+    Write-Host "自动恢复    : $(if ($watchdogTask) { "$($watchdogTask.TaskName) [$($watchdogTask.State)]" } else { '未安装' })"
     Write-Host "后台实例    : $(if ($workers.Count) { $workers.ProcessId -join ', ' } else { '无' })"
     Write-Host "荣耀分享    : $(if ($health) { if ($health.listenerStatus -eq 1) { '已开启' } else { '未确认开启' } } else { '未知' })"
     if ($health) {
@@ -232,30 +334,45 @@ function Start-KeepAlive {
     Stop-Worker
     Remove-Item -LiteralPath $StopFlag -Force -ErrorAction SilentlyContinue
     Register-KeepAliveTask
+    Register-KeepAliveWatchdogTask
     Start-ScheduledTask -TaskName $TaskName
     Wait-ForHealthyWorker | Out-Null
     return (Write-SelfCheck)
 }
 
 function Stop-KeepAlive {
+    Stop-KeepAliveWatchdogTask
     Stop-Worker
     Remove-Item -LiteralPath $HealthFile -Force -ErrorAction SilentlyContinue
 
     $task = Get-KeepAliveTask
+    $watchdogTask = Get-KeepAliveWatchdogTask
     $workers = @(Get-WorkerProcesses)
-    return ($workers.Count -eq 0 -and (-not $task -or $task.State -ne 'Running'))
+    return (
+        $workers.Count -eq 0 -and
+        (-not $task -or $task.State -ne 'Running') -and
+        (-not $watchdogTask -or $watchdogTask.State -ne 'Running')
+    )
 }
 
 function Uninstall-KeepAlive {
+    Stop-KeepAliveWatchdogTask
     Stop-Worker
     if (Get-KeepAliveTask) {
         Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
+    }
+    if (Get-KeepAliveWatchdogTask) {
+        Unregister-ScheduledTask -TaskName $WatchdogTaskName -Confirm:$false
     }
     Remove-Item -LiteralPath $StopFlag -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $PidFile -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $HealthFile -Force -ErrorAction SilentlyContinue
 
-    return (-not (Get-KeepAliveTask) -and @(Get-WorkerProcesses).Count -eq 0)
+    return (
+        -not (Get-KeepAliveTask) -and
+        -not (Get-KeepAliveWatchdogTask) -and
+        @(Get-WorkerProcesses).Count -eq 0
+    )
 }
 
 function Invoke-InteractiveMenu {
@@ -361,6 +478,19 @@ switch ($Command) {
         }
         else {
             $script:SelfCheckPassed = $false
+        }
+    }
+
+    'Watchdog' {
+        try {
+            $watchdogResult = Invoke-KeepAliveWatchdogNow
+            if ($watchdogResult.Action -eq 'DuplicateWorkers') {
+                exit 1
+            }
+        }
+        catch {
+            Write-WatchdogLog "Watchdog failed: $($_.Exception.Message)"
+            throw
         }
     }
 }
