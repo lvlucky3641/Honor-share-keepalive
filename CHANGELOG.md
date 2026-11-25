@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.5 - 2026-11-25
+
+- Fixed repeated PowerShell terminal windows caused by the Windows 11 default terminal host.
+- Launches the watchdog through a VBScript wrapper with window style `0`, matching the existing hidden worker launcher.
+- Added a launch-mode regression test that requires `wscript.exe` and `watchdog-hidden.vbs`.
+
 ## 1.3.4 - 2026-11-25
 
 - Fixed a watchdog restart loop when an older installation reclaimed the shared scheduled task.

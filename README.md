@@ -25,6 +25,8 @@
 
 如果旧版本目录残留并重新启动，新版 watchdog 会检测到旧路径的任务或进程，执行一次迁移并切回当前安装，避免新旧版本每分鐘互相重启。
 
+watchdog 使用 `watchdog-hidden.vbs` 隐藏启动，避免 Windows 11 默认终端在每分鐘检查时弹出 PowerShell 窗口。
+
 ### 自检内容
 
 `Check.cmd` 会同时验证：
@@ -76,6 +78,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\HonorShareKeepAlive.ps1 Un
 - `commands\Uninstall.cmd`：停止并删除计划任务。
 - `keepalive.js`：原生 IPC 保活逻辑。
 - `launch-hidden.vbs`：以隐藏方式启动 Node 模式。
+- `watchdog-hidden.vbs`：以完全隐藏方式启动每分鐘自动恢复检查。
 - `HonorShareKeepAlive.ps1`：安装、运行控制和自检。
 - `scripts\watchdog.ps1`：定期检查缺失任务或后台实例并执行恢复。
 - `logs/keepalive.log`：运行日志。

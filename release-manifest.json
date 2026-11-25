@@ -17,6 +17,7 @@
     "keepalive.js",
     "keepalive.test.js",
     "launch-hidden.vbs",
+    "watchdog-hidden.vbs",
     "package.json",
     "release-manifest.json",
     "scripts/build-release.ps1",

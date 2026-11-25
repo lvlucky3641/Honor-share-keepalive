@@ -46,6 +46,13 @@ $oldTask = [pscustomobject]@{
 Assert-Equal (Test-KeepAliveTaskCommand -Task $currentTask -ExpectedExecutable $expectedWScript -ExpectedLauncher $currentLauncher) $true 'Current task action should match'
 Assert-Equal (Test-KeepAliveTaskCommand -Task $oldTask -ExpectedExecutable $expectedWScript -ExpectedLauncher $currentLauncher) $false 'Old task action should not match'
 
+'watchdog task uses the hidden VBS launcher instead of starting PowerShell directly'
+$watchdogAction = Get-KeepAliveWatchdogTaskAction `
+    -WScript $expectedWScript `
+    -Launcher 'C:\apps\keepalive-v1.3.5\watchdog-hidden.vbs'
+Assert-Equal $watchdogAction.Execute $expectedWScript 'Watchdog must be launched through wscript'
+Assert-Equal $watchdogAction.Arguments '//B //NoLogo "C:\apps\keepalive-v1.3.5\watchdog-hidden.vbs"' 'Watchdog VBS arguments should be hidden and non-interactive'
+
 'ready task with no worker starts the main task'
 $calls = [System.Collections.Generic.List[string]]::new()
 $result = Invoke-KeepAliveWatchdog `

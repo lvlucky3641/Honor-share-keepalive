@@ -26,11 +26,13 @@ $HealthFile = Join-Path $RuntimeDir 'health.json'
 $LogFile = Join-Path $RootDir 'logs\keepalive.log'
 $WatchdogLogFile = Join-Path $RootDir 'logs\watchdog.log'
 $WScript = Join-Path $env:SystemRoot 'System32\wscript.exe'
-$PowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $WatchdogModule = Join-Path $RootDir 'scripts\watchdog.ps1'
+$WatchdogLauncher = Join-Path $RootDir 'watchdog-hidden.vbs'
 
-if (-not (Test-Path -LiteralPath $WatchdogModule -PathType Leaf)) {
-    throw "Watchdog module not found: $WatchdogModule"
+foreach ($requiredFile in @($WatchdogModule, $WatchdogLauncher)) {
+    if (-not (Test-Path -LiteralPath $requiredFile -PathType Leaf)) {
+        throw "Watchdog file not found: $requiredFile"
+    }
 }
 
 . $WatchdogModule
@@ -177,9 +179,12 @@ function Register-KeepAliveWatchdogTask {
     }
 
     $userId = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+    $actionSpec = Get-KeepAliveWatchdogTaskAction `
+        -WScript $WScript `
+        -Launcher $WatchdogLauncher
     $taskAction = New-ScheduledTaskAction `
-        -Execute $PowerShell `
-        -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$RootDir\HonorShareKeepAlive.ps1`" Watchdog"
+        -Execute $actionSpec.Execute `
+        -Argument $actionSpec.Arguments
     $repeatTrigger = New-ScheduledTaskTrigger `
         -Once `
         -At ((Get-Date).AddMinutes(1)) `

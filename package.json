@@ -1,6 +1,6 @@
 {
   "name": "honor-share-keepalive",
-  "version": "1.3.4",
+  "version": "1.3.5",
   "description": "Keep the HONOR Share discoverable switch enabled through Honor WorkStation's local IPC.",
   "main": "keepalive.js",
   "license": "MIT",

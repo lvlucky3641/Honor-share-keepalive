@@ -27,6 +27,21 @@ function Test-KeepAliveTaskCommand {
     )
 }
 
+function Get-KeepAliveWatchdogTaskAction {
+    param(
+        [Parameter(Mandatory)]
+        [string]$WScript,
+
+        [Parameter(Mandatory)]
+        [string]$Launcher
+    )
+
+    return [pscustomobject]@{
+        Execute = $WScript
+        Arguments = "//B //NoLogo `"$Launcher`""
+    }
+}
+
 function Invoke-KeepAliveWatchdog {
     [CmdletBinding()]
     param(
