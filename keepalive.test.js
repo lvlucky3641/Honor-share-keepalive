@@ -127,7 +127,6 @@ test('enforce retries publish when discovery is still off', async () => {
       ['ipc', PROTOCOL.SERVICE_MODULE_ID, PROTOCOL.ALLOW_DISCOVER, PROTOCOL.OFFICE_MODULE_ID],
       ['ipc', PROTOCOL.SERVICE_MODULE_ID, PROTOCOL.RESTART_STOP_PUBLISH_TIMER, PROTOCOL.OFFICE_MODULE_ID],
       ['ipc', PROTOCOL.SERVICE_MODULE_ID, PROTOCOL.GET_ALLOW_DISCOVER, PROTOCOL.OFFICE_MODULE_ID],
-      ['start', PROTOCOL.SERVICE_MODULE_ID, PROTOCOL.START_PUBLISH],
       ['ipc', PROTOCOL.SERVICE_MODULE_ID, PROTOCOL.ALLOW_DISCOVER, PROTOCOL.OFFICE_MODULE_ID],
       ['ipc', PROTOCOL.SERVICE_MODULE_ID, PROTOCOL.RESTART_STOP_PUBLISH_TIMER, PROTOCOL.OFFICE_MODULE_ID],
       ['ipc', PROTOCOL.SERVICE_MODULE_ID, PROTOCOL.GET_ALLOW_DISCOVER, PROTOCOL.OFFICE_MODULE_ID],
@@ -167,7 +166,7 @@ test('steady-state checks use only timer reset plus status query', async () => {
   ]);
 });
 
-test('recoverNow reopens discovery and verifies it within the recovery budget', async () => {
+test('recoverNow reopens discovery without relaunching the HONOR share UI', async () => {
   const { sdk, calls } = createSdk([1]);
   const controller = createController({
     sdk,
@@ -185,13 +184,6 @@ test('recoverNow reopens discovery and verifies it within the recovery budget', 
   assert.ok(recovery.latencyMs >= 0);
   assert.ok(recovery.latencyMs < 1_000);
   assert.deepEqual(calls, [
-    [
-      'start',
-      PROTOCOL.SERVICE_MODULE_ID,
-      PROTOCOL.START_PUBLISH,
-      PROTOCOL.START_PUBLISH_SUCCESS,
-      '',
-    ],
     [
       'ipc',
       PROTOCOL.SERVICE_MODULE_ID,
@@ -251,7 +243,7 @@ test('recoverNow verifies the switch before reopening after a close notification
   ]);
 });
 
-test('recoverNow still reopens when verification confirms the switch is off', async () => {
+test('recoverNow reopens when verification confirms the switch is off', async () => {
   const { sdk, calls } = createSdk([0, 1]);
   const controller = createController({
     sdk,
@@ -269,6 +261,76 @@ test('recoverNow still reopens when verification confirms the switch is off', as
 
   assert.equal(recovery.status, 1);
   assert.deepEqual(calls, [
+    [
+      'ipc',
+      PROTOCOL.SERVICE_MODULE_ID,
+      PROTOCOL.GET_ALLOW_DISCOVER,
+      PROTOCOL.OFFICE_MODULE_ID,
+      '',
+    ],
+    [
+      'ipc',
+      PROTOCOL.SERVICE_MODULE_ID,
+      PROTOCOL.ALLOW_DISCOVER,
+      PROTOCOL.OFFICE_MODULE_ID,
+      '1',
+    ],
+    [
+      'ipc',
+      PROTOCOL.SERVICE_MODULE_ID,
+      PROTOCOL.RESTART_STOP_PUBLISH_TIMER,
+      PROTOCOL.OFFICE_MODULE_ID,
+      '',
+    ],
+    [
+      'ipc',
+      PROTOCOL.SERVICE_MODULE_ID,
+      PROTOCOL.GET_ALLOW_DISCOVER,
+      PROTOCOL.OFFICE_MODULE_ID,
+      '',
+    ],
+  ]);
+});
+
+test('recoverNow falls back to starting the service when discovery cannot be enabled alone', async () => {
+  const { sdk, calls } = createSdk([0, 0, 1]);
+  const controller = createController({
+    sdk,
+    logger: noopLogger,
+    delay: async () => {},
+    schedule: () => {},
+  });
+
+  await controller.initialize();
+  calls.length = 0;
+
+  const recovery = await controller.recoverNow('confirmed-off', {
+    verifyFirst: true,
+  });
+
+  assert.equal(recovery.status, 1);
+  assert.deepEqual(calls, [
+    [
+      'ipc',
+      PROTOCOL.SERVICE_MODULE_ID,
+      PROTOCOL.GET_ALLOW_DISCOVER,
+      PROTOCOL.OFFICE_MODULE_ID,
+      '',
+    ],
+    [
+      'ipc',
+      PROTOCOL.SERVICE_MODULE_ID,
+      PROTOCOL.ALLOW_DISCOVER,
+      PROTOCOL.OFFICE_MODULE_ID,
+      '1',
+    ],
+    [
+      'ipc',
+      PROTOCOL.SERVICE_MODULE_ID,
+      PROTOCOL.RESTART_STOP_PUBLISH_TIMER,
+      PROTOCOL.OFFICE_MODULE_ID,
+      '',
+    ],
     [
       'ipc',
       PROTOCOL.SERVICE_MODULE_ID,

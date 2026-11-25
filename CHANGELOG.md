@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.7 - 2026-11-26
+
+- Changed recovery to enable discovery directly without relaunching the HONOR share UI.
+- Added a guarded fallback to the previous publish-service restart only when direct discovery fails.
+- Reduced the chance that the ten-minute HONOR timer triggers its own `honorshareRouter` popup.
+- Added regression coverage for the no-UI recovery path and fallback path.
+
 ## 1.3.6 - 2026-11-26
 
 - Reduced recurring HONOR close-popup notifications triggered by the ten-minute discovery event.

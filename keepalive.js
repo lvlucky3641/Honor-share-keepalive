@@ -174,10 +174,19 @@ function createController({
         }
       }
 
-      startPublishing();
       setDiscoveryEnabled(true);
       await restartDiscoveryTimer();
-      const status = await queryStatus(1_000);
+      let status = await queryStatus(1_000);
+
+      if (status !== 1) {
+        logger.warn('单独开启荣耀分享未生效，回退到重启发布流程。');
+        startPublishing();
+        setDiscoveryEnabled(true);
+        await delay(180);
+        await restartDiscoveryTimer();
+        status = await queryStatus();
+      }
+
       const latencyMs = Date.now() - startedAt;
 
       if (status === 1) {
