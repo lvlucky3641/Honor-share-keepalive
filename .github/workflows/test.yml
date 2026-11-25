@@ -1,0 +1,37 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+      - run: npm run check
+      - run: npm run package
+      - name: Validate PowerShell syntax
+        shell: powershell
+        run: |
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path .\HonorShareKeepAlive.ps1),
+            [ref]$null,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors) {
+            $errors | Format-List
+            exit 1
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HonorShareKeepAlive-release
+          path: |
+            dist/*.zip
+            dist/SHA256SUMS.txt
+          if-no-files-found: error

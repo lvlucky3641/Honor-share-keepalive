@@ -1,0 +1,35 @@
+{
+  "name": "honor-share-keepalive",
+  "version": "1.3.2",
+  "description": "Keep the HONOR Share discoverable switch enabled through Honor WorkStation's local IPC.",
+  "main": "keepalive.js",
+  "license": "MIT",
+  "private": false,
+  "homepage": "https://github.com/lvlucky3641/honor-share-keepalive#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lvlucky3641/honor-share-keepalive.git"
+  },
+  "bugs": {
+    "url": "https://github.com/lvlucky3641/honor-share-keepalive/issues"
+  },
+  "os": [
+    "win32"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "powershell -NoProfile -ExecutionPolicy Bypass -File ./HonorShareKeepAlive.ps1 Start",
+    "check:runtime": "powershell -NoProfile -ExecutionPolicy Bypass -File ./HonorShareKeepAlive.ps1 Check",
+    "test": "node --test ./keepalive.test.js",
+    "check": "node --check keepalive.js",
+    "package": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/build-release.ps1"
+  },
+  "keywords": [
+    "honor",
+    "honor-share",
+    "windows",
+    "keepalive"
+  ]
+}

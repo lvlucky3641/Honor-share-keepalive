@@ -1,0 +1,24 @@
+{
+  "files": [
+    ".editorconfig",
+    ".github/workflows/test.yml",
+    ".gitignore",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "Control.cmd",
+    "HonorShareKeepAlive.ps1",
+    "LICENSE",
+    "README.md",
+    "SECURITY.md",
+    "commands/Check.cmd",
+    "commands/Start.cmd",
+    "commands/Stop.cmd",
+    "commands/Uninstall.cmd",
+    "keepalive.js",
+    "keepalive.test.js",
+    "launch-hidden.vbs",
+    "package.json",
+    "release-manifest.json",
+    "scripts/build-release.ps1"
+  ]
+}
