@@ -122,7 +122,7 @@ HONOR Share Keep Alive is a Windows utility that keeps the temporary "discoverab
 
 ## GitHub
 
-源码和问题反馈：[lvlucky3641/honor-share-keepalive](https://github.com/lvlucky3641/honor-share-keepalive)。构建完成的 ZIP 和校验文件可以在该仓库的 Releases 页面下载。
+源码和问题反馈：[lvlucky3641/Honor-share-keepalive](https://github.com/lvlucky3641/Honor-share-keepalive)。构建完成的 ZIP 和校验文件可以在该仓库的 Releases 页面下载。
 
 ## License
 

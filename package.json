@@ -5,13 +5,13 @@
   "main": "keepalive.js",
   "license": "MIT",
   "private": false,
-  "homepage": "https://github.com/lvlucky3641/honor-share-keepalive#readme",
+  "homepage": "https://github.com/lvlucky3641/Honor-share-keepalive#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/lvlucky3641/honor-share-keepalive.git"
+    "url": "git+https://github.com/lvlucky3641/Honor-share-keepalive.git"
   },
   "bugs": {
-    "url": "https://github.com/lvlucky3641/honor-share-keepalive/issues"
+    "url": "https://github.com/lvlucky3641/Honor-share-keepalive/issues"
   },
   "os": [
     "win32"
