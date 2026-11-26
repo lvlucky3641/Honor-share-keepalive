@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.8 - 2026-11-26
+
+- Dismisses only the `SuperNotificationToastDlg` window owned by `HnTrustCircleService` after a real discovery close event.
+- Leaves HONOR notification settings and registry values unchanged.
+- Uses an independent hidden launcher and exact process/class matching.
+- Adds tests that close events request dismissal while intentional stop does not.
+
 ## 1.3.7 - 2026-11-26
 
 - Changed recovery to enable discovery directly without relaunching the HONOR share UI.

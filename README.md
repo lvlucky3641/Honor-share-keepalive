@@ -31,6 +31,8 @@ watchdog 使用 `watchdog-hidden.vbs` 隐藏启动，避免 Windows 11 默认终
 
 如果关闭通知对应真实关闭，恢复时会先直接重新开启可发现状态，不启动荣耀分享界面；只有单独开启失败时才回退到完整发布服务重启。
 
+荣耀的十分钟计时器无法通过现有 IPC 取消。发生真实关闭时，程序仍会立即恢复分享，并额外关闭 `HnTrustCircleService` 产生的专用 `SuperNotificationToastDlg` 提示窗口。此处理只匹配该进程和窗口类，不修改荣耀通知设置或其他通知。
+
 ### 自检内容
 
 `Check.cmd` 会同时验证：

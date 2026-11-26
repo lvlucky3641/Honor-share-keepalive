@@ -1,5 +1,6 @@
 'use strict';
 
+const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -61,6 +62,7 @@ function createController({
   delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
   schedule = setTimeout,
   clearSchedule = clearTimeout,
+  dismissHonorToast = () => {},
 }) {
   const pendingStatusRequests = new Set();
   let initialized = false;
@@ -146,6 +148,11 @@ function createController({
     }
 
     logger.warn(`${reason}，立即执行无窗口恢复: ${String(payload)}`);
+    try {
+      dismissHonorToast();
+    } catch (error) {
+      logger.warn(`关闭荣耀提示窗口失败: ${error.message}`);
+    }
     schedule(() => {
       recoverNow(reason, { verifyFirst: true }).catch((error) => {
         logger.error(`即时恢复失败: ${error.stack || error.message}`);
@@ -406,6 +413,12 @@ async function run() {
   const stopPath = path.join(runtimeDir, 'stop.request');
   const nativeModulePath =
     'C:\\Program Files\\Hihonornote\\resources\\app.asar.unpacked\\dist\\Release\\HnOfficeSdk.node';
+  const toastLauncher = path.join(rootDir, 'dismiss-toast-hidden.vbs');
+  const wscriptPath = path.join(
+    process.env.SystemRoot || 'C:\\Windows',
+    'System32',
+    'wscript.exe',
+  );
 
   const logger = createFileLogger(logPath);
   if (!process.versions.electron) {
@@ -424,6 +437,21 @@ async function run() {
   const controller = createController({
     sdk: require(nativeModulePath),
     logger,
+    dismissHonorToast() {
+      const worker = spawn(
+        wscriptPath,
+        ['//B', '//NoLogo', toastLauncher],
+        {
+          detached: true,
+          stdio: 'ignore',
+          windowsHide: true,
+        },
+      );
+      worker.on('error', (error) => {
+        logger.warn(`启动荣耀提示窗口清理器失败: ${error.message}`);
+      });
+      worker.unref();
+    },
   });
 
   function updateHealth(reason, listenerStatus) {

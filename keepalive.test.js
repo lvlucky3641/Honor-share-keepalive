@@ -17,16 +17,23 @@ const {
 function createSdk(statusValues) {
   const calls = [];
   let statusHandler;
+  let closeHandler;
   let statusIndex = 0;
 
   return {
     calls,
+    emitClose(payload = '') {
+      closeHandler(payload);
+    },
     sdk: {
       Init(appId) {
         calls.push(['init', appId]);
       },
       RegisterRecvHonorShareGetReceiveListenerStatusRspMsg(handler) {
         statusHandler = handler;
+      },
+      RegisterRecvHonorShareCloseDiscoverMsg(handler) {
+        closeHandler = handler;
       },
       SendCommonMsgWithReply(...args) {
         calls.push(['start', ...args]);
@@ -367,6 +374,45 @@ test('recoverNow falls back to starting the service when discovery cannot be ena
       '',
     ],
   ]);
+});
+
+test('close event requests dismissal of only the dedicated HONOR toast', async () => {
+  const { sdk, emitClose } = createSdk([1]);
+  let dismissCount = 0;
+  const controller = createController({
+    sdk,
+    logger: noopLogger,
+    delay: async () => {},
+    schedule: () => {},
+    dismissHonorToast() {
+      dismissCount += 1;
+    },
+  });
+
+  controller.initialize();
+  emitClose('');
+
+  assert.equal(dismissCount, 1);
+});
+
+test('intentional stop does not dismiss the HONOR toast', async () => {
+  const { sdk, emitClose } = createSdk([1]);
+  let dismissCount = 0;
+  const controller = createController({
+    sdk,
+    logger: noopLogger,
+    delay: async () => {},
+    schedule: () => {},
+    dismissHonorToast() {
+      dismissCount += 1;
+    },
+  });
+
+  controller.initialize();
+  controller.setAutoRecoveryEnabled(false);
+  emitClose('');
+
+  assert.equal(dismissCount, 0);
 });
 
 test('writeHealthFile records a machine-readable self-check snapshot', (t) => {
